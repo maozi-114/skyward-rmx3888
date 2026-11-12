@@ -7,6 +7,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 mod avb;
+mod port_audit;
 
 use skyward_bootimg::{BootImage, Ramdisk};
 
@@ -22,6 +23,8 @@ struct Cli {
 enum Cmd {
     /// Print an image's header and the files in its ramdisk.
     List { image: PathBuf },
+    /// Read-only audit of custom recovery startup dependencies; writes no image.
+    PortAudit { image: PathBuf },
     /// Write one ramdisk file to stdout.
     Cat { image: PathBuf, path: String },
     /// Unpack and pack an image's ramdisk unchanged, to check that a rebuilt
@@ -89,6 +92,12 @@ enum Cmd {
 fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::List { image } => list(&image),
+        Cmd::PortAudit { image } => {
+            let img = BootImage::read(&image)?;
+            let rd = Ramdisk::decode(&img.ramdisk)?;
+            print!("{}", port_audit::report(&rd));
+            Ok(())
+        }
         Cmd::Cat { image, path } => {
             let rd = Ramdisk::decode(&BootImage::read(&image)?.ramdisk)?;
             let e = rd.find(&path).with_context(|| format!("{path} is not in the ramdisk"))?;
