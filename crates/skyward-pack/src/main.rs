@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 mod avb;
 mod port_audit;
-mod twrp_overlay;
 
 use skyward_bootimg::{BootImage, Ramdisk};
 
@@ -24,18 +23,6 @@ struct Cli {
 enum Cmd {
     /// Print an image's header and the files in its ramdisk.
     List { image: PathBuf },
-    /// Stage binaries beside TWRP, preserving its recovery entry. Not an independent Skyward port.
-    TwrpStage {
-        #[arg(long)] base: PathBuf,
-        #[arg(long)] binary: PathBuf,
-        #[arg(long)] system_init: PathBuf,
-        #[arg(long)] config: PathBuf,
-        #[arg(long)] font: PathBuf,
-        #[arg(long)] mono: PathBuf,
-        #[arg(long)] mono_license: PathBuf,
-        #[arg(long)] out: PathBuf,
-    },
-
     /// Read-only audit of custom recovery startup dependencies; writes no image.
     PortAudit { image: PathBuf },
     /// Write one ramdisk file to stdout.
@@ -105,20 +92,6 @@ enum Cmd {
 fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::List { image } => list(&image),
-        Cmd::TwrpStage { base, binary, system_init, config, font, mono, mono_license, out } => {
-            ensure!(base.canonicalize()? != out.canonicalize().unwrap_or(out.clone()), "output must not overwrite base");
-            let size = partition_size(&base)?;
-            ensure!(size == 104857600, "RMX3888 staging expects a 100 MiB recovery partition");
-            let mut img = BootImage::read(&base)?;
-            ensure!(img.kernel.is_empty(), "expected this device's ramdisk-only recovery");
-            let mut rd = Ramdisk::decode(&img.ramdisk)?;
-            twrp_overlay::stage(&mut rd, std::fs::read(binary)?, std::fs::read(system_init)?, std::fs::read(config)?, std::fs::read(font)?, std::fs::read(mono)?, std::fs::read(mono_license)?)?;
-            img.ramdisk = rd.encode()?;
-            let bytes = img.to_bytes()?;
-            eprintln!("STAGING ONLY: preserves TWRP entry; unsigned rebuilt image; NOT boot-tested or an independent Skyward recovery");
-            write(&out, &img, &avb::footed(&bytes, "recovery", size, &Sha256::digest(&bytes))?)
-        }
-
         Cmd::PortAudit { image } => {
             let img = BootImage::read(&image)?;
             let rd = Ramdisk::decode(&img.ramdisk)?;
