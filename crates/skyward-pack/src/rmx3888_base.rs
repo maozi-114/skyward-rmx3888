@@ -1,11 +1,14 @@
 //! Explicit conversion of one audited RMX3888 TWRP base to standalone Skyward.
 //! Experimental: rebuilding is not evidence of hardware or decrypt compatibility.
-use anyhow::{ensure, Result};
+use anyhow::Result;
+#[cfg(test)]
+use anyhow::ensure;
 use skyward_bootimg::Ramdisk;
 pub const BASE_SHA256: &str = "cc34cd71ce185f77b6c996fd33df83ddb7db7d0c24372953e90a09099cc3f492";
 
 // Remove action blocks whose trigger is supplied by TWRP's C++ recovery.
 // Do not synthesize TWRP properties or execute prepdecrypt/variant scripts.
+#[cfg(test)]
 fn remove_twrp_actions(text: &str) -> String {
     let mut skip = false;
     let mut out = String::new();
@@ -16,7 +19,12 @@ fn remove_twrp_actions(text: &str) -> String {
     }
     out
 }
-pub fn convert(rd: &mut Ramdisk, codename: &str) -> Result<()> {
+pub fn convert(_rd: &mut Ramdisk, _codename: &str) -> Result<()> {
+    anyhow::bail!("RMX3888 conversion is blocked: firmware/ADSP/health and secure-service lifecycle migration is incomplete; no image may be emitted")
+}
+// Draft kept only for transformation unit tests; never callable by production packing.
+#[cfg(test)]
+fn draft_convert(rd: &mut Ramdisk, codename: &str) -> Result<()> {
     ensure!(codename == "rmx3888", "audited custom-base conversion is only for rmx3888");
     ensure!(rd.find("twres").is_some(), "expected the audited TWRP tree");
     ensure!(rd.find("system/bin/recovery").is_some(), "missing recovery program");
@@ -38,6 +46,12 @@ pub fn convert(rd: &mut Ramdisk, codename: &str) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
+    fn incomplete_port_cannot_emit_an_image() {
+        let mut rd = Ramdisk { entries: vec![] };
+        assert!(convert(&mut rd, "rmx3888").is_err());
+        assert!(rd.entries.is_empty());
+    }
+    #[test]
     fn removes_twrp_triggers_but_keeps_android_init_actions() {
         let text = "on fs\n    install_keyring\non property:twrp.modules.loaded=true\n    start variant-script\non property:twrp.variant.files_copied=1\n    start prepdecrypt.vendor\non property:servicemanager.ready=true\n    start vendor.ssgtzd\n";
         let out = remove_twrp_actions(text);
@@ -50,7 +64,7 @@ mod tests {
         rd.add("twres/ui.xml", 0o644, vec![]).unwrap();
         rd.add("system/bin/recovery", 0o755, vec![1]).unwrap();
         rd.add("init.recovery.qcom.rc", 0o644, b"on fs\n    install_keyring\n".to_vec()).unwrap();
-        convert(&mut rd, "rmx3888").unwrap();
+        draft_convert(&mut rd, "rmx3888").unwrap();
         assert!(rd.find("twres").is_none()); assert!(rd.find("twres/ui.xml").is_none());
         assert!(rd.find("system/bin/recovery").is_some());
     }
