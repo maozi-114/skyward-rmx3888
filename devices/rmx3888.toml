@@ -33,3 +33,7 @@ efs = ["modemst1", "modemst2", "fsg", "fsc", "persist"]
 # Deliberately no service/wlan/stock/update configuration yet:
 # TWRP's module, variant, prepdecrypt and NXP OMAPI startup must first
 # be translated or explicitly bridged; do not claim working decryption.
+
+# Mount modem firmware using the vendor fstab; Skyward owns this step.
+[firmware]
+partition = "modem"

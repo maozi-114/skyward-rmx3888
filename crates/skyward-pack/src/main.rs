@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 mod avb;
 mod port_audit;
+mod rmx3888_base;
 
 use skyward_bootimg::{BootImage, Ramdisk};
 
@@ -50,6 +51,9 @@ enum Cmd {
         /// phone or a full update package holds it, ending in its AVB footer.
         #[arg(long)]
         stock: PathBuf,
+        /// Convert only the SHA256-pinned RMX3888 TWRP base into standalone Skyward.
+        #[arg(long)]
+        rmx3888_base: bool,
         /// Skyward built for the device (aarch64-linux-android).
         #[arg(long)]
         binary: PathBuf,
@@ -114,13 +118,20 @@ fn main() -> Result<()> {
             img.kernel = BootImage::read(&kernel)?.kernel;
             write(&out, &img, &img.to_bytes()?)
         }
-        Cmd::Recovery { stock, binary, system_init, config, font, mono, mono_license, out } => {
+        Cmd::Recovery { stock, rmx3888_base, binary, system_init, config, font, mono, mono_license, out } => {
             let size = partition_size(&stock)?;
             let mut img = BootImage::read(&stock)?;
             let mut rd = Ramdisk::decode(&img.ramdisk)?;
-            // A stock recovery ramdisk has no third-party tree; refuse to build
-            // on top of another custom recovery.
-            if let Some(e) = rd.entries.iter().find(|e| e.name == "FFiles" || e.name.starts_with("twres")) {
+            if rmx3888_base {
+                let bytes = std::fs::read(&stock)?;
+                let sum: String = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+                ensure!(sum == rmx3888_base::BASE_SHA256, "not the audited RMX3888 base");
+                ensure!(size == 104857600 && img.kernel.is_empty(), "unexpected RMX3888 image layout");
+                ensure!(!out.exists(), "experimental output must be a new file");
+                let cfg = skyward_config::DeviceConfig::load(&config)?;
+                rmx3888_base::convert(&mut rd, &cfg.device.codename)?;
+                eprintln!("EXPERIMENTAL standalone Skyward: hardware/decryption and bootloader acceptance NOT tested");
+            } else if let Some(e) = rd.entries.iter().find(|e| e.name == "FFiles" || e.name.starts_with("twres")) {
                 anyhow::bail!("{} holds {}, which is not a stock recovery", stock.display(), e.name);
             }
             let read = |p: &PathBuf| std::fs::read(p).with_context(|| format!("read {}", p.display()));
