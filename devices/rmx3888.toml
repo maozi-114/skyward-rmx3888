@@ -1,0 +1,35 @@
+# Experimental RMX3888 / RE5C37 configuration, NOT a verified recovery port.
+# Observed on RMX3888_16.0.3.500(CN01), project 23607.
+# No [stock]: the available image is TWRP, not a factory recovery.
+# Do not use the upstream all-devices image workflow for this configuration.
+[device]
+codename = "rmx3888"
+brand = "realme"
+model = "RMX3888"
+ab = true
+soc = { hans = "第三代骁龙8移动平台", hant = "Snapdragon 8 Gen 3 行動平台", en = "Snapdragon 8 Gen 3 Mobile Platform" }
+os_version_prop = "ro.build.display.id"
+
+[display]
+width = 1264
+height = 2780
+density = 560
+diagonal = 6.78
+
+[modules]
+sources = ["vendor_boot", "vendor_dlkm", "vendor", "system_dlkm"]
+# Confirmed through spi0.0/driver/module, NOT merely /proc/modules.
+# Dependencies are supplied by the device's modules.dep.
+load = ["oplus_bsp_tp_tcm_S3910"]
+
+# Touch firmware is tp/23607/FW_S3910_BOE.img on this panel variant.
+# Other panel variants and recovery-time firmware lookup remain unverified.
+# No touch sysfs writes are guessed here.
+
+[backup]
+# Names confirmed in /dev/block/by-name. Restore has NOT been tested.
+efs = ["modemst1", "modemst2", "fsg", "fsc", "persist"]
+
+# Deliberately no service/wlan/stock/update configuration yet:
+# TWRP's module, variant, prepdecrypt and NXP OMAPI startup must first
+# be translated or explicitly bridged; do not claim working decryption.

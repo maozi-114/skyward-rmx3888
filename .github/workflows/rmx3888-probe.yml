@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [rmx3888-build-probe]
-    paths: [.github/workflows/rmx3888-probe.yml]
+    paths: [.github/workflows/rmx3888-probe.yml, devices/rmx3888.toml, crates/skyward-config/tests/rmx3888.rs]
 permissions:
   contents: read
 jobs:
@@ -16,6 +16,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
+      - name: Validate RMX3888 configuration
+        run: cargo test --locked -p skyward-config --test rmx3888
       - name: Install Android NDK r29
         uses: nttld/setup-ndk@v1
         id: ndk
